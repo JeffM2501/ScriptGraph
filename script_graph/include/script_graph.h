@@ -6,6 +6,35 @@
 #include <map>
 #include <unordered_map>
 #include <stack>
+#include <functional>
+
+class Node;
+namespace NodeRegistry
+{
+	void RegisterNode(const char* name, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory);
+
+	template<class T>
+	inline void RegisterNode()
+	{
+		RegisterNode(T::GetTypeName(), T::Create, T::Load);
+	}
+
+	Node* CreateNode(const char* name);
+
+	template<class T>
+	inline Node* CreateNode()
+	{
+		return (T*)CreateNode(T::GetTypeName());
+	}
+
+	Node* LoadNode(const char* name, void* data, size_t size);
+
+	template<class T>
+	inline Node* LoadNode(void* data, size_t size)
+	{
+		return (T*)LoadNode(T::GetTypeName(), data, size);
+	}
+}
 
 class NodeRef
 {
@@ -134,7 +163,22 @@ public:
 	virtual const NodeRef* Process(ScriptInstance& state) { return nullptr; }
 
 	virtual const ValueData* GetValue(uint32_t id, ScriptInstance& state) { return nullptr; }
+
+	// IO
+	virtual void Read(void* data, size_t size) {};
+	virtual size_t GetWriteSize() { return 0; }
+	virtual bool Write(void* data) { return false; }
+
+	// factory
+// 	static const char* GetTypeName() { return "Node"; }
+// 	static Node* Create() { return new Node(); }
+// 	static Node* Load(void* data, size_t size) { Node* node = new Node(); node->Read(data, size); return node; }
 };
+
+#define DEFINE_NODE(TYPE) \
+static const char* GetTypeName() { return #TYPE; } \
+static Node* Create() { return new TYPE(); } \
+static Node* Load(void* data, size_t size) { Node* node = new TYPE(); node->Read(data, size); return node; } 
 
 class ScriptGraph
 {
@@ -170,7 +214,6 @@ public:
 	std::stack<uint32_t> ReturnStack;
 	uint32_t CurrentNode = 0;
 
-
 protected:
 	ScriptGraph& Graph;
 	Result RunResult = Result::Error;
@@ -185,14 +228,17 @@ protected:
 class EntryNode : public Node
 {
 public:
+	DEFINE_NODE(EntryNode);
+
 	EntryNode();
 	const NodeRef* Process(ScriptInstance& state) override;
 };
 
-
 class Condition : public Node
 {
 public:
+	DEFINE_NODE(Condition);
+
 	Condition();
 	const NodeRef* Process(ScriptInstance& state) override;
 };
@@ -200,6 +246,8 @@ public:
 class Loop : public Node 
 {
 public:
+	DEFINE_NODE(Loop);
+
 	Loop();
 	const NodeRef* Process(ScriptInstance& state) override;
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
@@ -218,10 +266,13 @@ public:
 		AND,
 		OR,
 	};
-	Operation Operator;
+	Operation Operator = Operation::AND;
 
+	BooleanComparison() : ReturnValue(false) {}
 	BooleanComparison(Operation op);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	DEFINE_NODE(BooleanComparison);
 
 protected:
 	BooleanValueData ReturnValue;
@@ -232,6 +283,8 @@ class NotComparison : public Node
 public:
 	NotComparison();
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	DEFINE_NODE(NotComparison);
 
 protected:
 	BooleanValueData ReturnValue;
@@ -249,10 +302,13 @@ public:
 		Equal,
 		NotEqual,
 	};
-	Operation Operator;
+	Operation Operator = Operation::Equal;
 
+	NumberComparison() : ReturnValue(false) {}
 	NumberComparison(Operation op);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	DEFINE_NODE(NumberComparison);
 
 protected:
 	BooleanValueData ReturnValue;
@@ -271,8 +327,11 @@ public:
 		Modulo,
 		Pow,
 	};
-	Operation Operator;
+	Operation Operator = Operation::Add;
 
+	DEFINE_NODE(Math);
+
+	Math() : ReturnValue(0) {}
 	Math(Operation op);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -284,6 +343,9 @@ protected:
 class BooleanLiteral : public Node
 {
 public:
+	DEFINE_NODE(BooleanLiteral);
+
+	BooleanLiteral() : ReturnValue(false) {}
 	BooleanLiteral(bool value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -294,6 +356,9 @@ protected:
 class NumberLiteral : public Node
 {
 public:
+	DEFINE_NODE(NumberLiteral);
+
+	NumberLiteral() : ReturnValue(0) {}
 	NumberLiteral(float value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -304,8 +369,11 @@ protected:
 class StringLiteral : public Node
 {
 public:
+	StringLiteral() : ReturnValue("") {}
 	StringLiteral(const std::string& value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	DEFINE_NODE(StringLiteral);
 
 protected:
 	StringValueData ReturnValue;
@@ -315,6 +383,8 @@ protected:
 class PrintLog : public Node
 {
 public:
+	DEFINE_NODE(PrintLog);
+
 	PrintLog();
 	const NodeRef* PrintLog::Process(ScriptInstance& state) override;
 };
@@ -323,6 +393,8 @@ public:
 class LoadBool : public Node
 {
 public:
+	DEFINE_NODE(LoadBool);
+
 	LoadBool();
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -333,6 +405,8 @@ protected:
 class SaveBool : public Node
 {
 public:
+	DEFINE_NODE(SaveBool);
+
 	SaveBool();
 	const NodeRef* Process(ScriptInstance& state) override;
 };
@@ -340,6 +414,8 @@ public:
 class LoadNumber : public Node
 {
 public:
+	DEFINE_NODE(LoadNumber);
+
 	LoadNumber();
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -350,6 +426,8 @@ protected:
 class SaveNumber : public Node
 {
 public:
+	DEFINE_NODE(SaveNumber);
+
 	SaveNumber();
 	const NodeRef* Process(ScriptInstance& state) override;
 };
@@ -357,6 +435,8 @@ public:
 class LoadString : public Node
 {
 public:
+	DEFINE_NODE(LoadString);
+
 	LoadString();
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
@@ -367,6 +447,8 @@ protected:
 class SaveString : public Node
 {
 public:
+	DEFINE_NODE(SaveString);
+
 	SaveString();
 	const NodeRef* Process(ScriptInstance& state) override;
 };

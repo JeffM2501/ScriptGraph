@@ -1,6 +1,40 @@
 #include "script_graph.h"
 
 
+namespace NodeRegistry
+{
+	struct NodeFacotry
+	{
+		std::function<Node* ()> NewFactory;
+		std::function<Node* (void*, size_t)> LoadFactory;
+	};
+
+	std::map<std::string, NodeFacotry> NodeTypeDb;
+
+	void NodeRegistry::RegisterNode(const char* name, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory)
+	{
+		NodeTypeDb[name] = NodeFacotry{ newFactory,loadFactory };
+	}
+
+	Node* NodeRegistry::CreateNode(const char* name)
+	{
+		auto itr = NodeTypeDb.find(name);
+		if (itr == NodeTypeDb.end())
+			return nullptr;
+
+		return itr->second.NewFactory();
+	}
+
+	Node* NodeRegistry::LoadNode(const char* name, void* data, size_t size)
+	{
+		auto itr = NodeTypeDb.find(name);
+		if (itr == NodeTypeDb.end())
+			return nullptr;
+
+		return itr->second.LoadFactory(data, size);
+	}
+}
+
 ScriptInstance::ScriptInstance(ScriptGraph& graph)
 	: Graph(graph)
 {
@@ -30,9 +64,7 @@ bool ScriptInstance::RunStep()
 
 ScriptInstance::Result ScriptInstance::Run(const std::string& entryPoint)
 {
-	BoolGlobals.clear();
-	NumGlobals.clear();
-	StringGlobals.clear();
+	Clear();
 
 	auto itr = Graph.EntryNodes.find(entryPoint);
 	if (itr == Graph.EntryNodes.end() || !itr->second)
@@ -61,4 +93,13 @@ void ScriptInstance::PushReturnNode()
 {
 	if (CurrentNode <= Graph.Nodes.size())
 		ReturnStack.push(CurrentNode);
+}
+
+
+void ScriptInstance::Clear()
+{
+	BoolGlobals.clear();
+	NumGlobals.clear();
+	StringGlobals.clear();
+	NodeStateNums.clear();
 }
