@@ -1,10 +1,127 @@
 // C library
-#include "script_graph.h"
+#define _CRT_SECURE_NO_WARNINGS
 
+#include "script_graph.h"
+#include <memory>
 
 std::string NumberValueData::Text;
 float StringValueData::ValueF = 0;
 
+void Node::Read(void* data, size_t size, size_t& offset)
+{
+	AllowInput = ReadBool(data, size, offset);
+	
+	uint32_t outNodes = ReadUInt(data, size, offset);
+	if (outNodes > OutputNodeRefs.size())
+		outNodes = (uint32_t)OutputNodeRefs.size();
+	for (uint32_t i = 0; i < outNodes; i++)
+		OutputNodeRefs[i].ID = ReadUInt(data, size, offset);
+
+	uint32_t args = ReadUInt(data, size, offset);
+	if (args > Arguments.size())
+		args = (uint32_t)Arguments.size();
+	for (uint32_t i = 0; i < args; i++)
+		Arguments[i].ID = ReadUInt(data, size, offset);
+}
+
+size_t Node::GetDataSize()
+{
+	size_t size = 1; // allow input
+	size += 4; //  outputNode size;
+	size += 4; // argument size
+	size += 4; // values size;
+
+	size += OutputNodeRefs.size() * sizeof(uint32_t);
+	size += Arguments.size() * sizeof(uint32_t);
+
+	return size;
+}
+
+bool Node::Write(void* data, size_t& offset)
+{
+	WriteBool(AllowInput, data, offset);
+
+	WriteUInt(OutputNodeRefs.size(), data, offset);
+	for (const auto& value : OutputNodeRefs)
+		WriteUInt(value.ID, data, offset);
+
+	WriteUInt(Arguments.size(), data, offset);
+	for (const auto& value : Arguments)
+		WriteUInt(value.ID, data, offset);
+
+	return true;
+}
+
+void Node::WriteBool(bool value, void* data, size_t& offset)
+{
+	unsigned char* buffer = static_cast<unsigned char*>(data) + offset;
+	*buffer = value ? 1 : 0;
+	offset++;
+}
+
+void Node::WriteUInt(uint32_t value, void* data, size_t& offset)
+{
+	uint32_t* buffer = (uint32_t*)((char*)data + offset);
+	offset += 4;
+	*buffer = value;
+}
+
+void Node::WriteUInt(size_t value, void* data, size_t& offset)
+{
+	WriteUInt(static_cast<uint32_t>(value), data, offset);
+}
+
+void Node::WriteFloat(float value, void* data, size_t& offset)
+{
+	float* buffer = (float*)((char*)data + offset);
+	offset += 4;
+	*buffer = value;
+}
+
+void Node::WriteString(const std::string& value, void* data, size_t& offset)
+{
+	WriteUInt(value.size(), data, offset);
+	memcpy((char*)data + offset, value.c_str(), value.size());
+	offset += value.size();
+}
+
+bool Node::ReadBool(void* data, size_t size, size_t& offset)
+{
+	if (offset >= size)
+		return false;
+
+	unsigned char* buffer = static_cast<unsigned char*>(data) + offset;
+	offset++;
+	return *buffer != 0;
+}
+
+uint32_t Node::ReadUInt(void* data, size_t size, size_t& offset)
+{
+	if (offset >= size)
+		return 0;
+
+	uint32_t* buffer = (uint32_t*)((char*)data + offset);
+	offset += 4;
+	return *buffer;
+}
+
+float Node::ReadFloat(void* data, size_t size, size_t& offset)
+{
+	if (offset >= size)
+		return 0;
+
+	float* buffer = (float*)((char*)data + offset);
+	offset += 4;
+	return *buffer;
+}
+
+std::string Node::ReadString(void* data, size_t size, size_t& offset)
+{
+	uint32_t len = ReadUInt(data, size, offset);
+	std::string value((char*)data + offset, len);
+	offset += len;
+	return value;
+}
 
 EntryNode::EntryNode()
 {
@@ -52,7 +169,7 @@ const NodeRef* Loop::Process(ScriptInstance& state)
 {
 	auto indexItr = state.NodeStateNums.find(ID);
 
-	int index = 0;
+	uint32_t index = 0;
 	if (indexItr != state.NodeStateNums.end())
 		index = indexItr->second + 1;
 
@@ -81,6 +198,24 @@ const ValueData* Loop::GetValue(uint32_t id, ScriptInstance& state)
 	return &IndexValue;
 }
 
+void Loop::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	Itterations = ReadUInt(data, size, offset);
+}
+
+size_t Loop::GetDataSize()
+{
+	return Node::GetDataSize() + 4;
+}
+
+bool Loop::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteUInt(Itterations, data, offset);
+	return true;
+}
+
 BooleanComparison::BooleanComparison(Operation op)
 	: Operator(op)
 	, ReturnValue(false)
@@ -107,6 +242,24 @@ const ValueData* BooleanComparison::GetValue(uint32_t id, ScriptInstance& state)
 	}
 
 	return &ReturnValue;
+}
+
+void BooleanComparison::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	Operator = (Operation)ReadUInt(data, size, offset);
+}
+
+size_t BooleanComparison::GetDataSize()
+{
+	return Node::GetDataSize() + 4;
+}
+
+bool BooleanComparison::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteUInt((uint32_t)(Operator), data, offset);
+	return true;
 }
 
 NotComparison::NotComparison()
@@ -174,6 +327,24 @@ const ValueData* NumberComparison::GetValue(uint32_t id, ScriptInstance& state)
 	return &ReturnValue;
 }
 
+void NumberComparison::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	Operator = (Operation)ReadUInt(data, size, offset);
+}
+
+size_t NumberComparison::GetDataSize()
+{
+	return Node::GetDataSize() + 4;
+}
+
+bool NumberComparison::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteUInt((uint32_t)(Operator), data, offset);
+	return true;
+}
+
 Math::Math(Operation op)
 	: Operator(op)
 	, ReturnValue(0)
@@ -221,6 +392,24 @@ const ValueData* Math::GetValue(uint32_t id, ScriptInstance& state)
 	return &ReturnValue;
 }
 
+void Math::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	Operator = (Operation)ReadUInt(data, size, offset);
+}
+
+size_t Math::GetDataSize()
+{
+	return Node::GetDataSize() + 4;
+}
+
+bool Math::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteUInt((uint32_t)(Operator), data, offset);
+	return true;
+}
+
 BooleanLiteral::BooleanLiteral(bool value)
 	: ReturnValue(value)
 {
@@ -230,6 +419,24 @@ BooleanLiteral::BooleanLiteral(bool value)
 const ValueData* BooleanLiteral::GetValue(uint32_t id, ScriptInstance& state)
 {
 	return &ReturnValue;
+}
+
+void BooleanLiteral::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	ReturnValue.Value = ReadBool(data, size, offset);
+}
+
+size_t BooleanLiteral::GetDataSize()
+{
+	return Node::GetDataSize() + 1;
+}
+
+bool BooleanLiteral::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteBool(ReturnValue.Value, data, offset);
+	return true;
 }
 
 NumberLiteral::NumberLiteral(float value)
@@ -243,6 +450,24 @@ const ValueData* NumberLiteral::GetValue(uint32_t id, ScriptInstance& state)
 	return &ReturnValue;
 }
 
+void NumberLiteral::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	ReturnValue.Value = ReadFloat(data, size, offset);
+}
+
+size_t NumberLiteral::GetDataSize()
+{
+	return Node::GetDataSize() + 4;
+}
+
+bool NumberLiteral::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteFloat(ReturnValue.Value, data, offset);
+	return true;
+}
+
 StringLiteral::StringLiteral(const std::string& value)
 	: ReturnValue(value)
 {
@@ -252,6 +477,24 @@ StringLiteral::StringLiteral(const std::string& value)
 const ValueData* StringLiteral::GetValue(uint32_t id, ScriptInstance& state)
 {
 	return &ReturnValue;
+}
+
+void StringLiteral::Read(void* data, size_t size, size_t& offset)
+{
+	Node::Read(data, size, offset);
+	ReturnValue.Value = ReadString(data, size, offset);
+}
+
+size_t StringLiteral::GetDataSize()
+{
+	return Node::GetDataSize() + GetStringDataSize(ReturnValue.Value);
+}
+
+bool StringLiteral::Write(void* data, size_t& offset)
+{
+	Node::Write(data, offset);
+	WriteString(ReturnValue.Value, data, offset);
+	return true;
 }
 
 PrintLog::PrintLog()
@@ -383,4 +626,54 @@ const NodeRef* SaveString::Process(ScriptInstance& state)
 		state.StringGlobals[name->String()] = value->String();
 
 	return &OutputNodeRefs[0];
+}
+
+void ScriptGraph::Write(ScriptResource& resource) const
+{
+	for (size_t i = 0; i < Nodes.size(); i++)
+	{
+		Node* node = Nodes[i];
+
+		node->ID = uint32_t(i);
+
+		NodeResource res;
+		res.ID = uint32_t(i);
+
+		auto itr = EntryNodes.find(node->Name);
+		res.EntryPoint = itr != EntryNodes.end() && itr->second->ID == res.ID;
+
+		strcpy(res.TypeName, node->TypeName());
+
+		size_t nameLen = node->Name.size();
+		if (nameLen >= NodeResource::MaxNodeName)
+			nameLen = NodeResource::MaxNodeName-1;
+		memcpy(res.Name, node->Name.c_str(), nameLen);
+
+		res.DataSize = node->GetDataSize();
+		res.Data = malloc(res.DataSize);
+		size_t offset = 0;
+		if (node->Write(res.Data, offset))
+			resource.Nodes.emplace_back(std::move(res));
+		else
+			free(res.Data);
+	}
+}
+
+bool ScriptGraph::Read(const ScriptResource& package)
+{
+	Nodes.resize(package.Nodes.size());
+	EntryNodes.clear();
+
+	for (const NodeResource& res : package.Nodes)
+	{
+		Nodes[res.ID] = NodeRegistry::LoadNode(res.TypeName, res.Data, res.DataSize);
+		Nodes[res.ID]->ID = res.ID;
+		Nodes[res.ID]->Name = res.Name;
+
+		if (res.EntryPoint)
+		{
+			EntryNodes.insert_or_assign(Nodes[res.ID]->Name, Nodes[res.ID]);
+		}
+	}
+	return true;
 }

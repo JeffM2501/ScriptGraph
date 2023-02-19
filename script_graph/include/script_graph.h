@@ -11,7 +11,7 @@
 class Node;
 namespace NodeRegistry
 {
-	void RegisterNode(const char* name, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory);
+	void RegisterNode(const char* typeName, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory);
 
 	template<class T>
 	inline void RegisterNode()
@@ -19,7 +19,7 @@ namespace NodeRegistry
 		RegisterNode(T::GetTypeName(), T::Create, T::Load);
 	}
 
-	Node* CreateNode(const char* name);
+	Node* CreateNode(const char* typeName);
 
 	template<class T>
 	inline Node* CreateNode()
@@ -27,13 +27,15 @@ namespace NodeRegistry
 		return (T*)CreateNode(T::GetTypeName());
 	}
 
-	Node* LoadNode(const char* name, void* data, size_t size);
+	Node* LoadNode(const char* typeName, void* data, size_t size);
 
 	template<class T>
 	inline Node* LoadNode(void* data, size_t size)
 	{
 		return (T*)LoadNode(T::GetTypeName(), data, size);
 	}
+
+	void RegisterDefaultNodes();
 }
 
 class NodeRef
@@ -164,21 +166,59 @@ public:
 
 	virtual const ValueData* GetValue(uint32_t id, ScriptInstance& state) { return nullptr; }
 
-	// IO
-	virtual void Read(void* data, size_t size) {};
-	virtual size_t GetWriteSize() { return 0; }
-	virtual bool Write(void* data) { return false; }
+	virtual const char* TypeName() const = 0;
 
-	// factory
-// 	static const char* GetTypeName() { return "Node"; }
-// 	static Node* Create() { return new Node(); }
-// 	static Node* Load(void* data, size_t size) { Node* node = new Node(); node->Read(data, size); return node; }
+	// IO
+	virtual void Read(void* data, size_t size, size_t& offset);
+	virtual size_t GetDataSize();
+	virtual bool Write(void* data, size_t& offset);
+
+protected:
+	void WriteBool(bool value, void* data, size_t& offset);
+	void WriteUInt(uint32_t value, void* data, size_t& offset);
+	void WriteUInt(size_t value, void* data, size_t& offset);
+	void WriteFloat(float value, void* data, size_t& offset);
+	void WriteString(const std::string& value, void* data, size_t& offset);
+	size_t GetStringDataSize(const std::string& value) { return 4 + value.size(); }
+
+	bool ReadBool(void* data, size_t size, size_t& offset);
+	uint32_t ReadUInt(void* data, size_t size, size_t& offset);
+	float ReadFloat(void* data, size_t size, size_t& offset);
+	std::string ReadString(void* data, size_t size, size_t& offset);
+};
+
+struct NodeResource
+{
+	static constexpr size_t MaxNodeName = 32;
+
+	bool EntryPoint = false;
+	uint32_t ID = uint32_t(-1);
+	char TypeName[MaxNodeName] = { 0 };
+	char Name[MaxNodeName] = { 0 };
+
+	size_t DataSize = 0;
+	void* Data = nullptr;
+};
+
+struct ScriptResource
+{
+	std::vector<NodeResource> Nodes;
+
+	~ScriptResource()
+	{
+		for (auto& res : Nodes)
+		{
+			if (res.Data)
+				free(res.Data);
+		}
+	}
 };
 
 #define DEFINE_NODE(TYPE) \
 static const char* GetTypeName() { return #TYPE; } \
+const char* TypeName() const override { return #TYPE; } \
 static Node* Create() { return new TYPE(); } \
-static Node* Load(void* data, size_t size) { Node* node = new TYPE(); node->Read(data, size); return node; } 
+static Node* Load(void* data, size_t size) { Node* node = new TYPE(); size_t offset = 0; node->Read(data, size, offset); return node; } 
 
 class ScriptGraph
 {
@@ -186,6 +226,10 @@ public:
 	std::vector<Node*> Nodes;
 
 	std::map<std::string, Node*> EntryNodes;
+
+	void Write(ScriptResource& resource) const;
+
+	bool Read(const ScriptResource& package);
 };
 
 class ScriptInstance
@@ -252,7 +296,12 @@ public:
 	const NodeRef* Process(ScriptInstance& state) override;
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
-	int Itterations = -1;
+	uint32_t Itterations = 0;
+
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
+
 protected:
 	NumberValueData IndexValue;
 };
@@ -263,7 +312,7 @@ class BooleanComparison : public Node
 public:
 	enum class Operation
 	{
-		AND,
+		AND = 0,
 		OR,
 	};
 	Operation Operator = Operation::AND;
@@ -273,6 +322,10 @@ public:
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	DEFINE_NODE(BooleanComparison);
+
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
 
 protected:
 	BooleanValueData ReturnValue;
@@ -295,7 +348,7 @@ class NumberComparison : public Node
 public:
 	enum class Operation
 	{
-		GreaterThan,
+		GreaterThan = 0,
 		GreaterThanEqual,
 		LessThan,
 		LessThankEqual,
@@ -307,6 +360,10 @@ public:
 	NumberComparison() : ReturnValue(false) {}
 	NumberComparison(Operation op);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
 
 	DEFINE_NODE(NumberComparison);
 
@@ -320,7 +377,7 @@ class Math : public Node
 public:
 	enum class Operation
 	{
-		Add,
+		Add = 0,
 		Subtract,
 		Multiply,
 		Divide,
@@ -334,6 +391,10 @@ public:
 	Math() : ReturnValue(0) {}
 	Math(Operation op);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
 
 protected:
 	NumberValueData ReturnValue;
@@ -349,6 +410,10 @@ public:
 	BooleanLiteral(bool value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
+
 protected:
 	BooleanValueData ReturnValue;
 };
@@ -362,6 +427,10 @@ public:
 	NumberLiteral(float value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
+
 protected:
 	NumberValueData ReturnValue;
 };
@@ -374,6 +443,10 @@ public:
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	DEFINE_NODE(StringLiteral);
+
+	void Read(void* data, size_t size, size_t& offset) override;
+	size_t GetDataSize() override;
+	bool Write(void* data, size_t& offset) override;
 
 protected:
 	StringValueData ReturnValue;

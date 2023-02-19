@@ -11,27 +11,48 @@ namespace NodeRegistry
 
 	std::map<std::string, NodeFacotry> NodeTypeDb;
 
-	void NodeRegistry::RegisterNode(const char* name, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory)
+	void NodeRegistry::RegisterNode(const char* typeName, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory)
 	{
-		NodeTypeDb[name] = NodeFacotry{ newFactory,loadFactory };
+		NodeTypeDb[typeName] = NodeFacotry{ newFactory,loadFactory };
 	}
 
-	Node* NodeRegistry::CreateNode(const char* name)
+	Node* NodeRegistry::CreateNode(const char* typeName)
 	{
-		auto itr = NodeTypeDb.find(name);
+		auto itr = NodeTypeDb.find(typeName);
 		if (itr == NodeTypeDb.end())
 			return nullptr;
 
 		return itr->second.NewFactory();
 	}
 
-	Node* NodeRegistry::LoadNode(const char* name, void* data, size_t size)
+	Node* NodeRegistry::LoadNode(const char* typeName, void* data, size_t size)
 	{
-		auto itr = NodeTypeDb.find(name);
+		auto itr = NodeTypeDb.find(typeName);
 		if (itr == NodeTypeDb.end())
 			return nullptr;
 
 		return itr->second.LoadFactory(data, size);
+	}
+
+	void RegisterDefaultNodes()
+	{
+		RegisterNode<EntryNode>();
+		RegisterNode<Condition>();
+		RegisterNode<Loop>();
+		RegisterNode<BooleanComparison>();
+		RegisterNode<NotComparison>();
+		RegisterNode<NumberComparison>();
+		RegisterNode<Math>();
+		RegisterNode<BooleanLiteral>();
+		RegisterNode<NumberLiteral>();
+		RegisterNode<StringLiteral>();
+		RegisterNode<PrintLog>();
+		RegisterNode<LoadBool>();
+		RegisterNode<SaveBool>();
+		RegisterNode<LoadNumber>();
+		RegisterNode<SaveNumber>();
+		RegisterNode<LoadString>();
+		RegisterNode<SaveString>();
 	}
 }
 
