@@ -22,6 +22,9 @@ void Node::Read(void* data, size_t size, size_t& offset)
 		args = (uint32_t)Arguments.size();
 	for (uint32_t i = 0; i < args; i++)
 		Arguments[i].ID = ReadUInt(data, size, offset);
+
+	NodePosX = ReadFloat(data, size, offset);
+	NodePosY = ReadFloat(data, size, offset);
 }
 
 size_t Node::GetDataSize()
@@ -30,6 +33,7 @@ size_t Node::GetDataSize()
 	size += 4; //  outputNode size;
 	size += 4; // argument size
 	size += 4; // values size;
+	size += 8; // node pos
 
 	size += OutputNodeRefs.size() * sizeof(uint32_t);
 	size += Arguments.size() * sizeof(uint32_t);
@@ -48,6 +52,9 @@ bool Node::Write(void* data, size_t& offset)
 	WriteUInt(Arguments.size(), data, offset);
 	for (const auto& value : Arguments)
 		WriteUInt(value.ID, data, offset);
+
+	WriteFloat(NodePosX, data, offset);
+	WriteFloat(NodePosY, data, offset);
 
 	return true;
 }
@@ -414,6 +421,7 @@ BooleanLiteral::BooleanLiteral(bool value)
 	: ReturnValue(value)
 {
 	AllowInput = false;
+	Values.emplace_back(ValueTypes::Boolean, "", 0);
 }
 
 const ValueData* BooleanLiteral::GetValue(uint32_t id, ScriptInstance& state)
@@ -443,6 +451,7 @@ NumberLiteral::NumberLiteral(float value)
 	: ReturnValue(value)
 {
 	AllowInput = false;
+	Values.emplace_back(ValueTypes::Number, "", 0);
 }
 
 const ValueData* NumberLiteral::GetValue(uint32_t id, ScriptInstance& state)
@@ -472,6 +481,7 @@ StringLiteral::StringLiteral(const std::string& value)
 	: ReturnValue(value)
 {
 	AllowInput = false;
+	Values.emplace_back(ValueTypes::String, "", 0);
 }
 
 const ValueData* StringLiteral::GetValue(uint32_t id, ScriptInstance& state)

@@ -36,6 +36,8 @@ namespace NodeRegistry
 	}
 
 	void RegisterDefaultNodes();
+
+	std::vector<std::string> GetNodeList();
 }
 
 class NodeRef
@@ -74,7 +76,7 @@ public:
 	}
 };
 
-class ValueDef : NodeRef
+class ValueDef : public NodeRef
 {
 public:
 	
@@ -154,6 +156,9 @@ class ScriptInstance;
 class Node : public NodeRef
 {
 public:
+	float NodePosX = 0;
+	float NodePosY = 0;
+
 	bool AllowInput = true;
 
 	std::vector<NodeRef> OutputNodeRefs;
@@ -167,6 +172,8 @@ public:
 	virtual const ValueData* GetValue(uint32_t id, ScriptInstance& state) { return nullptr; }
 
 	virtual const char* TypeName() const = 0;
+
+	virtual const char* Icon() const { return nullptr; }
 
 	// IO
 	virtual void Read(void* data, size_t size, size_t& offset);
@@ -410,6 +417,9 @@ public:
 	BooleanLiteral(bool value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
+	inline void SetValue(const bool& value) { ReturnValue.Value = value; };
+	inline bool GetValue() const { return ReturnValue.Value; };
+
 	void Read(void* data, size_t size, size_t& offset) override;
 	size_t GetDataSize() override;
 	bool Write(void* data, size_t& offset) override;
@@ -427,6 +437,9 @@ public:
 	NumberLiteral(float value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
+	inline void SetValue(const float& value) { ReturnValue.Value = value; };
+	inline float GetValue() const { return ReturnValue.Value; };
+
 	void Read(void* data, size_t size, size_t& offset) override;
 	size_t GetDataSize() override;
 	bool Write(void* data, size_t& offset) override;
@@ -441,6 +454,9 @@ public:
 	StringLiteral() : ReturnValue("") {}
 	StringLiteral(const std::string& value);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
+
+	inline void SetValue(const std::string& text) { ReturnValue.Value = text; };
+	inline const char* GetValue() const { return ReturnValue.Value.c_str(); };
 
 	DEFINE_NODE(StringLiteral);
 

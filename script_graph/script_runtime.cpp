@@ -3,17 +3,19 @@
 
 namespace NodeRegistry
 {
-	struct NodeFacotry
+	struct NodeFactory
 	{
 		std::function<Node* ()> NewFactory;
 		std::function<Node* (void*, size_t)> LoadFactory;
+
+		std::string Name;
 	};
 
-	std::map<std::string, NodeFacotry> NodeTypeDb;
+	std::map<std::string, NodeFactory> NodeTypeDb;
 
 	void NodeRegistry::RegisterNode(const char* typeName, std::function<Node* ()> newFactory, std::function<Node* (void*, size_t)> loadFactory)
 	{
-		NodeTypeDb[typeName] = NodeFacotry{ newFactory,loadFactory };
+		NodeTypeDb[typeName] = NodeFactory{ newFactory, loadFactory, typeName };
 	}
 
 	Node* NodeRegistry::CreateNode(const char* typeName)
@@ -53,6 +55,18 @@ namespace NodeRegistry
 		RegisterNode<SaveNumber>();
 		RegisterNode<LoadString>();
 		RegisterNode<SaveString>();
+	}
+
+	std::vector<std::string> GetNodeList()
+	{
+		std::vector<std::string> nodes;
+
+		for (const auto& nodeInfo : NodeTypeDb)
+		{
+			nodes.push_back(nodeInfo.first);
+		}	
+
+		return nodes;
 	}
 }
 

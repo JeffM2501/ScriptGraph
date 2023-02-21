@@ -14,7 +14,7 @@ For a C++ project simply rename the file to .cpp and run premake
 
 ScriptGraph Graph;
 
-constexpr int LoopCount = 10000;
+constexpr int LoopCount = 20000;
 
 ScriptResource globalRes;
 
