@@ -511,7 +511,7 @@ PrintLog::PrintLog()
 {
 	OutputNodeRefs.emplace_back("Out");
 
-	Arguments.emplace_back(ValueTypes::Number, "Text");
+	Arguments.emplace_back(ValueTypes::String, "Text");
 }
 
 const NodeRef* PrintLog::Process(ScriptInstance& state)

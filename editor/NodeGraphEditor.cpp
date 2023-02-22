@@ -30,6 +30,36 @@ struct NodeCacheItem
 	std::vector<NodeCachePinInfo> ExitPlugIds;
 	std::vector<NodeCachePinInfo> ArgumentPlugIds;
 	std::vector<NodeCachePinInfo> ValuePlugIds;
+
+	int GetExitPlugIndex(int pinId)
+	{
+		for (int i = 0; i < int(ExitPlugIds.size()); i++)
+		{
+			if (ExitPlugIds[i].PinId == pinId)
+				return i;
+		}
+		return -1;
+	}
+
+	int GetArgumentPlugIndex(int pinId)
+	{
+		for (int i = 0; i < int(ArgumentPlugIds.size()); i++)
+		{
+			if (ArgumentPlugIds[i].PinId == pinId)
+				return i;
+		}
+		return -1;
+	}
+
+	int GetValuePlugIndex(int pinId)
+	{
+		for (int i = 0; i < int(ValuePlugIds.size()); i++)
+		{
+			if (ValuePlugIds[i].PinId == pinId)
+				return i;
+		}
+		return -1;
+	}
 };
 
 std::map<uint32_t, NodeCacheItem> NodeCache;
@@ -180,20 +210,8 @@ void ShowNode(Node* node, int& index, bool forcePositions)
 	}
 }
 
-void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
+void DrawLinks(ScriptGraph& graph)
 {
-	WindowOrigin = ImGui::GetWindowPos();
-
-	ImNodes::BeginNodeEditor();
-
-	PinCache.clear();
-
-	int index = 0;
-	for (auto& node : graph.Nodes)
-	{
-		ShowNode(node, index, forcePositions);
-	}
-
 	int linkID = 0;
 
 	// draw the links
@@ -211,7 +229,7 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 				int sourcePlugId = nodeCacheItem.ExitPlugIds[exitPlug].PinId;
 
 				int targetPlugId = NodeCache[ref.ID].EntryPlugId;
-				
+
 				nodeCacheItem.ExitPlugIds[exitPlug].LinkId = linkID;
 
 				ImNodes::Link(linkID++, sourcePlugId, targetPlugId);
@@ -235,8 +253,10 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 			}
 		}
 	}
-	ImNodes::EndNodeEditor();
+}
 
+void ProcessNewLinks(ScriptGraph& graph)
+{
 	// add links
 	int startPin = -1;
 	int endPin = -1;
@@ -244,35 +264,86 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 
 	if (ImNodes::IsLinkCreated(&startPin, &endPin, &fromSnap))
 	{
-// 		auto& startInfo = NodePlugMap.find(startPin);
-// 		auto& endInfo = NodePlugMap.find(endPin);
-// 
-// 		// connection from exit to exit
-// 		if (startInfo->second.second >= 0 && endInfo->second.second >= 0)
-// 			return;
-// 
-// 		// connection from start to start
-// 		if (startInfo->second.second < 0 && endInfo->second.second < 0)
-// 			return;
-// 
-// 		uint32_t startNode = startInfo->second.first;
-// 		int startPlugIndex = startInfo->second.second;
-// 		uint32_t targetNode = endInfo->second.first;
-// 
-// 		// ensure that the link starts from an exit node
-// 		if (startPlugIndex < 0)
-// 		{
-// 			startNode = endInfo->second.first;
-// 			startPlugIndex = endInfo->second.second;
-// 
-// 			targetNode = startInfo->second.first;
-// 		}
-// 
-// 		auto* sourceNode = NodeGraph.GetNode(startNode);
-// 		sourceNode->SetPlug(startPlugIndex, targetNode);
+		// figure out what the start pin is
+		const auto& startPinInfo = PinCache[startPin];
+		auto& startNodeInfo = NodeCache[startPinInfo.first];
+
+		const auto& endPinInfo = PinCache[endPin];
+		auto& endNodeInfo = NodeCache[endPinInfo.first];
+
+		if (startPin == startNodeInfo.EntryPlugId)
+		{
+			// must go to an exit pin
+			int destIndex = endNodeInfo.GetExitPlugIndex(endPin);
+			if (destIndex >= 0)
+			{
+				graph.Nodes[endPinInfo.first]->OutputNodeRefs[destIndex].ID = startPinInfo.first;
+			}
+		}
+
+		int exitPin = startNodeInfo.GetExitPlugIndex(startPin);
+		if (exitPin >= 0)
+		{
+			// must go to a start pin
+			if (endPin == endNodeInfo.EntryPlugId)
+			{
+				graph.Nodes[startPinInfo.first]->OutputNodeRefs[exitPin].ID = endPinInfo.first;
+			}
+		}
+
+		int valuePin = startNodeInfo.GetValuePlugIndex(startPin);
+		if (valuePin >= 0)
+		{
+			// must go to an argument pin
+			int destIndex = endNodeInfo.GetArgumentPlugIndex(endPin);
+			if (destIndex >= 0)
+			{
+				// verify compatible types
+				if (graph.Nodes[endPinInfo.first]->Arguments[destIndex].RefType == graph.Nodes[startPinInfo.first]->Values[valuePin].Type)
+				{
+					graph.Nodes[endPinInfo.first]->Arguments[destIndex].ID = startPinInfo.first;
+					graph.Nodes[endPinInfo.first]->Arguments[destIndex].ValueId = valuePin;
+				}
+			}
+		}
+
+		int argumentPin = startNodeInfo.GetArgumentPlugIndex(startPin);
+		if (argumentPin >= 0)
+		{
+			// must go to a value pin
+			int destIndex = endNodeInfo.GetValuePlugIndex(endPin);
+			if (destIndex >= 0)
+			{
+				// verify compatible types
+				if (graph.Nodes[endPinInfo.first]->Values[destIndex].Type == graph.Nodes[startPinInfo.first]->Arguments[argumentPin].RefType)
+				{
+					graph.Nodes[startPinInfo.first]->Arguments[argumentPin].ID = endPinInfo.first;
+					graph.Nodes[startPinInfo.first]->Arguments[argumentPin].ValueId = destIndex;
+				}
+			}
+		}
 	}
+}
 
+void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
+{
+	WindowOrigin = ImGui::GetWindowPos();
 
+	ImNodes::BeginNodeEditor();
+
+	PinCache.clear();
+
+	int index = 0;
+	for (auto& node : graph.Nodes)
+		ShowNode(node, index, forcePositions);
+
+	DrawLinks(graph);
+	
+	ImNodes::EndNodeEditor();
+
+	ProcessNewLinks(graph);
+
+	// check for deleted links
 }
 
 void AddNodeBody(const std::string& name, std::function<void(Node*)> callback)
