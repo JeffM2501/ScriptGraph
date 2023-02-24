@@ -23,7 +23,6 @@ struct NodeCachePinInfo
 
 struct NodeCacheItem
 {
-	std::string Icon = ICON_FA_PUZZLE_PIECE;
 	int VisualNodeId = -1;
 	int EntryPlugId = -1;
 
@@ -65,8 +64,10 @@ struct NodeCacheItem
 std::map<uint32_t, NodeCacheItem> NodeCache;
 
 std::map<std::string, std::function<void(Node*)>> BodyCallbacks;
+std::map<std::string, std::string> NodeIcons;
 
 std::vector<std::pair<uint32_t, int>> PinCache;
+std::vector<uint32_t> LinkNodeCache;
 
 const char* GetValueTypeName(ValueTypes valType)
 {
@@ -93,10 +94,13 @@ void ShowNode(Node* node, int& index, bool forcePositions)
 
 	nodeCacheItem.VisualNodeId = node->ID;
 
-	std::string icon = ICON_FA_PUZZLE_PIECE;
+	const char* icon = ICON_FA_PUZZLE_PIECE;
+	auto iconItr = NodeIcons.find(node->TypeName());
+	if (iconItr != NodeIcons.end())
+		icon = iconItr->second.c_str();
 
 	char label[128] = { 0 };
-	std::snprintf(label, 128, "%s %s", icon.c_str(), node->Name.empty() ? node->TypeName() : node->Name.c_str());
+	std::snprintf(label, 128, "%s %s", icon, node->Name.empty() ? node->TypeName() : node->Name.c_str());
 
 	if (forcePositions)
 		ImNodes::SetNodeEditorSpacePos(screeNodeId, ImVec2(node->NodePosX, node->NodePosY));
@@ -233,6 +237,7 @@ void DrawLinks(ScriptGraph& graph)
 				nodeCacheItem.ExitPlugIds[exitPlug].LinkId = linkID;
 
 				ImNodes::Link(linkID++, sourcePlugId, targetPlugId);
+				LinkNodeCache.push_back(node->ID);
 			}
 		}
 
@@ -250,6 +255,7 @@ void DrawLinks(ScriptGraph& graph)
 				nodeCacheItem.ArgumentPlugIds[argumentPlug].LinkId = linkID;
 
 				ImNodes::Link(linkID++, sourcePlugId, targetPlugId);
+				LinkNodeCache.push_back(node->ID);
 			}
 		}
 	}
@@ -325,6 +331,53 @@ void ProcessNewLinks(ScriptGraph& graph)
 	}
 }
 
+void ProcessRemovedLinks(ScriptGraph& graph)
+{
+	int deadLink = -1;
+	if (!ImNodes::IsLinkDestroyed(&deadLink) || (deadLink < 0 || deadLink >= LinkNodeCache.size()))
+		return;
+
+	Node* node = graph.Nodes[LinkNodeCache[deadLink]];
+	auto& nodeCacheItem = NodeCache[node->ID];
+
+	// see what kind of link it is, exit or argument
+	for (size_t i = 0; i < nodeCacheItem.ExitPlugIds.size(); i++)
+	{
+		if (nodeCacheItem.ExitPlugIds[i].LinkId == deadLink)
+		{
+			node->OutputNodeRefs[i].ID = uint32_t(-1);
+			return;
+		}
+	}
+
+	for (size_t i = 0; i < nodeCacheItem.ArgumentPlugIds.size(); i++)
+	{
+		if (nodeCacheItem.ArgumentPlugIds[i].LinkId == deadLink)
+		{
+			node->Arguments[i].ID = uint32_t(-1);
+			return;
+		}
+	}
+}
+
+void HandleNodeDrag(ScriptGraph& graph)
+{
+	ImVec2 mousePos = ImGui::GetMousePos();
+
+	if (ImGui::BeginDragDropTarget())
+	{
+		const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("NODE_DEF");
+		if (payload != nullptr && payload->IsDelivery())
+		{
+			IM_ASSERT(payload->DataSize == sizeof(size_t));
+			const std::string* payload_n = (std::string*)payload->Data;
+
+			AddNodeAtCursorPos(payload_n);
+		}
+		ImGui::EndDragDropTarget();
+	}
+}
+
 void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 {
 	WindowOrigin = ImGui::GetWindowPos();
@@ -332,6 +385,7 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 	ImNodes::BeginNodeEditor();
 
 	PinCache.clear();
+	LinkNodeCache.clear();
 
 	int index = 0;
 	for (auto& node : graph.Nodes)
@@ -343,11 +397,27 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 
 	ProcessNewLinks(graph);
 
-	// check for deleted links
+	ProcessRemovedLinks(graph);
+
+	HandleNodeDrag(graph);
 }
 
 void AddNodeBody(const std::string& name, std::function<void(Node*)> callback)
 {
 	if (callback != nullptr)
 		BodyCallbacks[name] = callback;
+}
+
+void AddNodeIcon(const std::string& name, const std::string& Icon)
+{
+	NodeIcons[name] = Icon;
+}
+
+const char* GetNodeIcon(const std::string& name)
+{
+	auto itr = NodeIcons.find(name);
+	if (itr == NodeIcons.end())
+		return ICON_FA_PUZZLE_PIECE;
+
+	return itr->second.c_str();
 }

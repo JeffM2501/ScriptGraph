@@ -519,10 +519,13 @@ const NodeRef* PrintLog::Process(ScriptInstance& state)
 	auto* text = state.GetValue(Arguments[0]);
 
 	if (text)
-		printf("%s\n", text->String().c_str());
+		LogFunction(text->String());
 
 	return &OutputNodeRefs[0];
 }
+
+std::function<void(const std::string&)> PrintLog::LogFunction = [](const std::string& text) { printf("%s", text.c_str()); };
+
 
 LoadBool::LoadBool()
 	: ReturnValue(false)

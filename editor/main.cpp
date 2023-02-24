@@ -16,12 +16,16 @@ For a C++ project simply rename the file to .cpp and run premake
 #include "tinyfiledialogs.h"
 #include "NodeGraphEditor.h"
 
+#include <list>
+
 bool Quit = false;
 float MenuHeight = 0;
 float SidebarSize = 200;
 float OutputSize = 200;
 
-std::vector <std::string> NodeRegistryCache;
+std::vector<std::string> NodeRegistryCache;
+
+std::list<std::string> LogLines;
 
 void SaveScript(const ScriptGraph& graph, const std::string& filename)
 {
@@ -98,6 +102,8 @@ ScriptGraph TheGraph;
 std::string GraphPath;
 bool GraphNew = true;
 
+ScriptInstance Instance(TheGraph);
+
 void SetupImGui()
 {
 	rlImGuiBeginInitImGui();
@@ -125,31 +131,79 @@ void SetupScripting()
 		{
 			float y = ImGui::GetCursorPosY();
 			StringLiteral* literal = static_cast<StringLiteral*>(node);
-	        char temp[512];
-	        std::strncpy(temp, literal->GetValue(), 512);
-	        ImGui::SetNextItemWidth(125);
+			char temp[512];
+			std::strncpy(temp, literal->GetValue(), 512);
+			ImGui::SetNextItemWidth(125);
 			if (ImGui::InputText("###Literal", temp, 512))
-			    literal->SetValue(temp);
+				literal->SetValue(temp);
 			ImGui::SetCursorPosY(y);
 		});
+	AddNodeIcon(StringLiteral::GetTypeName(), ICON_FA_FONT);
 
-	AddNodeBody(NumberLiteral::GetTypeName(), [](Node* node) 
+	AddNodeBody(NumberLiteral::GetTypeName(), [](Node* node)
 		{
 			NumberLiteral* literal = static_cast<NumberLiteral*>(node);
-	float value = literal->GetValue();
-	ImGui::SetNextItemWidth(125);
-	if (ImGui::InputFloat("###FloatLiteral", &value))
-		literal->SetValue(value);
+			float value = literal->GetValue();
+			ImGui::SetNextItemWidth(125);
+			if (ImGui::InputFloat("###FloatLiteral", &value))
+				literal->SetValue(value);
 		});
+	AddNodeIcon(NumberLiteral::GetTypeName(), ICON_FA_HASHTAG);
+
+	AddNodeBody(BooleanLiteral::GetTypeName(), [](Node* node)
+		{
+			BooleanLiteral* literal = static_cast<BooleanLiteral*>(node);
+			bool value = literal->GetValue();
+			ImGui::SetNextItemWidth(125);
+			if (ImGui::BeginCombo("###Value", value ? "TRUE" : "FALSE"))
+			{
+				if (ImGui::Selectable("TRUE", value))
+					literal->SetValue(true);
+
+				if (ImGui::Selectable("FALSE", !value))
+					literal->SetValue(false);
+
+				ImGui::EndCombo();
+			}
+		});
+
+	AddNodeIcon(BooleanLiteral::GetTypeName(), ICON_FA_CHECK);
 
 	AddNodeBody(Loop::GetTypeName(), [](Node* node)
 		{
 			Loop* loop = static_cast<Loop*>(node);
-	        ImGui::BeginDisabled(loop->Arguments[0].ID != uint32_t(-1));
-	        ImGui::SetNextItemWidth(50);
-	        ImGui::InputScalar("Itterations", ImGuiDataType_U32, &loop->Itterations);
+			ImGui::BeginDisabled(loop->Arguments[0].ID != uint32_t(-1));
+			ImGui::SetNextItemWidth(50);
+			ImGui::InputScalar("Itterations", ImGuiDataType_U32, &loop->Itterations);
 			ImGui::EndDisabled();
 		});
+
+	AddNodeIcon(Loop::GetTypeName(), ICON_FA_RECYCLE);
+
+	PrintLog::LogFunction = [](const std::string& text)
+	{
+		while (LogLines.size() > 100)
+			LogLines.erase(LogLines.begin());
+
+		LogLines.push_back(text);
+	};
+	AddNodeIcon(PrintLog::GetTypeName(), ICON_FA_TERMINAL);
+	AddNodeIcon(EntryNode::GetTypeName(), ICON_FA_ARROW_RIGHT);
+
+	AddNodeIcon(BooleanComparison::GetTypeName(), ICON_FA_EQUALS);
+	AddNodeIcon(NumberComparison::GetTypeName(), ICON_FA_EQUALS);
+	AddNodeIcon(NotComparison::GetTypeName(), ICON_FA_EXCLAMATION);
+
+	AddNodeIcon(Math::GetTypeName(), ICON_FA_PLUS);
+	AddNodeIcon(Condition::GetTypeName(), ICON_FA_QUESTION);
+
+	AddNodeIcon(LoadBool::GetTypeName(), ICON_FA_UPLOAD);
+	AddNodeIcon(LoadNumber::GetTypeName(), ICON_FA_UPLOAD);
+	AddNodeIcon(LoadString::GetTypeName(), ICON_FA_UPLOAD);
+
+	AddNodeIcon(SaveBool::GetTypeName(), ICON_FA_DOWNLOAD);
+	AddNodeIcon(SaveNumber::GetTypeName(), ICON_FA_DOWNLOAD);
+	AddNodeIcon(SaveString::GetTypeName(), ICON_FA_DOWNLOAD);
 }
 
 void DoMainMenu()
@@ -241,10 +295,8 @@ void DoMainMenu()
 		{
 			if (ImGui::MenuItem("Run"))
 			{
-// 				if (NodeGraph.m_entryNodes.size() > 0)
-// 				{
-// 					NodeGraph.Run(NodeGraph.m_entryNodes[0]);
-// 				}
+				if (!Instance.Running)
+					Instance.Start(TheGraph.EntryNodes.begin()->first);
 			}
 			ImGui::EndMenu();
 		}
@@ -263,10 +315,21 @@ void ShowNodes()
 	ImGui::SetNextWindowPos(ImVec2(0, MenuHeight + style.FramePadding.y));
 	ImGui::SetNextWindowSize(ImVec2(GetScreenWidth() - (SidebarSize + style.FramePadding.x), GetScreenHeight() - OutputSize));
 
+	if (Instance.Running)
+		ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4{ 1,0,0,1 });
+
 	if (ImGui::Begin(ICON_FA_SITEMAP "  NodeGraph", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
 	{
+		if (Instance.Running)
+			ImGui::PopStyleColor();
+
 		ShowGraphEditor(TheGraph, GraphNew);
 		GraphNew = false;
+	}
+	else
+	{
+		if (Instance.Running)
+			ImGui::PopStyleColor();
 	}
 
 	ImGui::End();
@@ -286,10 +349,11 @@ void ShowSidebar()
 	{
 		if (ImGui::BeginChild("NodePalette"))
 		{
-
 			for (const auto& node : NodeRegistryCache)
 			{
-				std::string label = ICON_FA_PUZZLE_PIECE + node;
+				std::string label = GetNodeIcon(node);
+				label += " " + node;
+
 				bool selected = false;
 				ImGui::Selectable(label.c_str(), &selected, ImGuiSelectableFlags_SpanAllColumns);
 
@@ -320,10 +384,10 @@ void ShowOutput()
 
 	if (ImGui::Begin(ICON_FA_PRINT "  Output", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
 	{
-// 		for (std::vector<std::string>::reverse_iterator itr = PrintItems.rbegin(); itr != PrintItems.rend(); itr++)
-// 		{
-// 			ImGui::TextUnformatted(itr->c_str());
-// 		}
+		for (auto itr = LogLines.rbegin(); itr != LogLines.rend(); itr++)
+		{
+			ImGui::TextUnformatted(itr->c_str());
+		}
 	}
 
 	ImGui::End();
@@ -337,7 +401,6 @@ void ShowEditorUI()
 	ShowSidebar();
 	ImGui::PopStyleColor();
 }
-
 
 void SetupGraph()
 {
@@ -410,6 +473,20 @@ int main ()
 	// game loop
 	while (!WindowShouldClose() && !Quit)
 	{
+		if (Instance.Running)
+		{
+			switch (Instance.Step())
+			{
+				case ScriptInstance::Result::Complete:
+					LogLines.push_back("Script Complete");
+					break;
+
+				case ScriptInstance::Result::Error:
+					LogLines.push_back("Script Error");
+					break;
+			}
+		}
+
 		// drawing
 		BeginDrawing();
 		ClearBackground(BLACK);

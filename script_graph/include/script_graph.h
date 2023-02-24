@@ -243,7 +243,6 @@ class ScriptInstance
 {
 public:
 	ScriptInstance(ScriptGraph& graph);
-
 	enum class Result
 	{
 		Error,
@@ -252,6 +251,9 @@ public:
 	};
 
 	Result Run(const std::string& entryPoint);
+
+	ScriptInstance::Result Start(const std::string& entryPoint);
+	ScriptInstance::Result Step();
 
 	const ValueData* GetValue(const ValueRef& ref);
 
@@ -264,6 +266,8 @@ public:
 
 	std::stack<uint32_t> ReturnStack;
 	uint32_t CurrentNode = 0;
+
+	bool Running = false;
 
 protected:
 	ScriptGraph& Graph;
@@ -476,6 +480,8 @@ public:
 
 	PrintLog();
 	const NodeRef* PrintLog::Process(ScriptInstance& state) override;
+
+	static std::function<void(const std::string&)> LogFunction;
 };
 
 // Variable Access

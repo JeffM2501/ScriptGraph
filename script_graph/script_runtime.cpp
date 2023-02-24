@@ -99,7 +99,11 @@ bool ScriptInstance::RunStep()
 
 ScriptInstance::Result ScriptInstance::Run(const std::string& entryPoint)
 {
+	if (Running)
+		return Result::Incomplete;
+
 	Clear();
+	Running = true;
 
 	auto itr = Graph.EntryNodes.find(entryPoint);
 	if (itr == Graph.EntryNodes.end() || !itr->second)
@@ -113,6 +117,36 @@ ScriptInstance::Result ScriptInstance::Run(const std::string& entryPoint)
 			break;
 	}
 
+	Running = false;
+	return Result::Complete;
+}
+
+ScriptInstance::Result ScriptInstance::Start(const std::string& entryPoint)
+{
+	if (Running)
+		return Result::Error;
+
+	Clear();
+	Running = true;
+
+	auto itr = Graph.EntryNodes.find(entryPoint);
+	if (itr == Graph.EntryNodes.end() || !itr->second)
+		return Result::Error;
+
+	CurrentNode = itr->second->ID;
+
+	return Step();
+}
+
+ScriptInstance::Result ScriptInstance::Step()
+{
+	if (!Running)
+		return Result::Complete;
+
+	if (RunStep())
+		return Result::Incomplete;
+
+	Running = false;
 	return Result::Complete;
 }
 
