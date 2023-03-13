@@ -25,7 +25,7 @@ void SetupGraph()
 	entry->ID = 0;
 	entry->OutputNodeRefs[0].ID = 1;
 
-	Graph.Nodes.push_back(entry);
+	Graph.Nodes[0] = entry;
 	Graph.EntryNodes[entry->Name] = entry;
 
 	Loop* loop = new Loop();
@@ -33,27 +33,27 @@ void SetupGraph()
 	loop->Itterations = LoopCount;
 	loop->OutputNodeRefs[0].ID = 5;
 	loop->OutputNodeRefs[1].ID = 2;
-	Graph.Nodes.push_back(loop);
+	Graph.Nodes[1] = (loop);
 
 	PrintLog* log = new PrintLog();
 	log->ID = 2;
 	log->Arguments[0].ID = 3;
 	log->Arguments[0].ValueId = 0;
-	Graph.Nodes.push_back(log);
+	Graph.Nodes[2] = (log);
 
 	StringLiteral* literal = new StringLiteral("Loop Cycle");
 	literal->ID = 3;
-	Graph.Nodes.push_back(literal);
+	Graph.Nodes[3] = (literal);
 
 	StringLiteral* endLiteral = new StringLiteral("Loop Complete");
 	endLiteral->ID = 4;
-	Graph.Nodes.push_back(endLiteral);
+	Graph.Nodes[4] = (endLiteral);
 
 	log = new PrintLog();
 	log->ID = 5;
 	log->Arguments[0].ID = 4;
 	log->Arguments[0].ValueId = 0;
-	Graph.Nodes.push_back(log);
+	Graph.Nodes[5] = (log);
 }
 
 void SaveScript(const ScriptGraph& graph, const std::string& filename)

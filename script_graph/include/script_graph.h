@@ -38,6 +38,8 @@ namespace NodeRegistry
 	void RegisterDefaultNodes();
 
 	std::vector<std::string> GetNodeList();
+
+	const std::string& GetNodeTypeFromIndex(size_t index);
 }
 
 class NodeRef
@@ -230,13 +232,15 @@ static Node* Load(void* data, size_t size) { Node* node = new TYPE(); size_t off
 class ScriptGraph
 {
 public:
-	std::vector<Node*> Nodes;
+	std::map<uint32_t,Node*> Nodes;
 
 	std::map<std::string, Node*> EntryNodes;
 
 	void Write(ScriptResource& resource) const;
 
 	bool Read(const ScriptResource& package);
+
+	uint32_t AddNode(Node* node);
 };
 
 class ScriptInstance
@@ -328,8 +332,7 @@ public:
 	};
 	Operation Operator = Operation::AND;
 
-	BooleanComparison() : ReturnValue(false) {}
-	BooleanComparison(Operation op);
+	BooleanComparison(Operation op = Operation::AND);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	DEFINE_NODE(BooleanComparison);
@@ -368,8 +371,7 @@ public:
 	};
 	Operation Operator = Operation::Equal;
 
-	NumberComparison() : ReturnValue(false) {}
-	NumberComparison(Operation op);
+	NumberComparison(Operation op = Operation::GreaterThan);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	void Read(void* data, size_t size, size_t& offset) override;
@@ -399,8 +401,7 @@ public:
 
 	DEFINE_NODE(Math);
 
-	Math() : ReturnValue(0) {}
-	Math(Operation op);
+	Math(Operation op = Operation::Add);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	void Read(void* data, size_t size, size_t& offset) override;
@@ -416,9 +417,7 @@ class BooleanLiteral : public Node
 {
 public:
 	DEFINE_NODE(BooleanLiteral);
-
-	BooleanLiteral() : ReturnValue(false) {}
-	BooleanLiteral(bool value);
+	BooleanLiteral(bool value = false);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	inline void SetValue(const bool& value) { ReturnValue.Value = value; };
@@ -437,8 +436,7 @@ class NumberLiteral : public Node
 public:
 	DEFINE_NODE(NumberLiteral);
 
-	NumberLiteral() : ReturnValue(0) {}
-	NumberLiteral(float value);
+	NumberLiteral(float value = 0);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	inline void SetValue(const float& value) { ReturnValue.Value = value; };
@@ -455,8 +453,7 @@ protected:
 class StringLiteral : public Node
 {
 public:
-	StringLiteral() : ReturnValue("") {}
-	StringLiteral(const std::string& value);
+	StringLiteral(const std::string& value = "");
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
 
 	inline void SetValue(const std::string& text) { ReturnValue.Value = text; };

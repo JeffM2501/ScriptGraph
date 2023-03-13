@@ -643,10 +643,8 @@ const NodeRef* SaveString::Process(ScriptInstance& state)
 
 void ScriptGraph::Write(ScriptResource& resource) const
 {
-	for (size_t i = 0; i < Nodes.size(); i++)
+	for (auto&[i, node] : Nodes)
 	{
-		Node* node = Nodes[i];
-
 		node->ID = uint32_t(i);
 
 		NodeResource res;
@@ -674,7 +672,7 @@ void ScriptGraph::Write(ScriptResource& resource) const
 
 bool ScriptGraph::Read(const ScriptResource& package)
 {
-	Nodes.resize(package.Nodes.size());
+	Nodes.clear();
 	EntryNodes.clear();
 
 	for (const NodeResource& res : package.Nodes)
@@ -689,4 +687,21 @@ bool ScriptGraph::Read(const ScriptResource& package)
 		}
 	}
 	return true;
+}
+
+uint32_t ScriptGraph::AddNode(Node* node)
+{
+	uint32_t id = 0;
+	for (const auto& [i,n] : Nodes)
+	{
+		if (id <= n->ID)
+			id = n->ID;
+	}
+
+	id++;
+
+	node->ID = id;
+	Nodes[id] = node;
+
+	return id;
 }

@@ -190,6 +190,23 @@ void SetupScripting()
 	AddNodeIcon(PrintLog::GetTypeName(), ICON_FA_TERMINAL);
 	AddNodeIcon(EntryNode::GetTypeName(), ICON_FA_ARROW_RIGHT);
 
+	AddNodeBody(BooleanComparison::GetTypeName(), [](Node* node)
+	{
+			BooleanComparison* boolComp = static_cast<BooleanComparison*>(node);
+		bool value = literal->GetValue();
+		ImGui::SetNextItemWidth(125);
+		if (ImGui::BeginCombo("###Value", value ? "TRUE" : "FALSE"))
+		{
+			if (ImGui::Selectable("TRUE", value))
+				literal->SetValue(true);
+
+			if (ImGui::Selectable("FALSE", !value))
+				literal->SetValue(false);
+
+			ImGui::EndCombo();
+		}
+	});
+
 	AddNodeIcon(BooleanComparison::GetTypeName(), ICON_FA_EQUALS);
 	AddNodeIcon(NumberComparison::GetTypeName(), ICON_FA_EQUALS);
 	AddNodeIcon(NotComparison::GetTypeName(), ICON_FA_EXCLAMATION);
@@ -349,8 +366,9 @@ void ShowSidebar()
 	{
 		if (ImGui::BeginChild("NodePalette"))
 		{
-			for (const auto& node : NodeRegistryCache)
+			for (size_t i = 0; i < NodeRegistryCache.size(); ++i)
 			{
+				const auto& node = NodeRegistryCache[i];
 				std::string label = GetNodeIcon(node);
 				label += " " + node;
 
@@ -359,7 +377,7 @@ void ShowSidebar()
 
 				if (ImGui::BeginDragDropSource())
 				{
-					ImGui::SetDragDropPayload("NODE_NAME", &node, sizeof(size_t), ImGuiCond_Always);
+					ImGui::SetDragDropPayload("NODE", node.c_str(), node.size() + 1 , ImGuiCond_Always);
 					ImGui::TextUnformatted(label.c_str());
 					ImGui::EndDragDropSource();
 				}
@@ -411,7 +429,7 @@ void SetupGraph()
 	entry->NodePosX = 10;
 	entry->NodePosY = 10;
 
-	TheGraph.Nodes.push_back(entry);
+	TheGraph.Nodes[0] = (entry);
 	TheGraph.EntryNodes[entry->Name] = entry;
 
 	Loop* loop = new Loop();
@@ -423,7 +441,7 @@ void SetupGraph()
 	loop->NodePosX = 300;
 	loop->NodePosY = 10;
 
-	TheGraph.Nodes.push_back(loop);
+	TheGraph.Nodes[1] = (loop);
 
 	PrintLog* log = new PrintLog();
 	log->ID = 2;
@@ -432,19 +450,19 @@ void SetupGraph()
 
 	log->NodePosX = 530;
 	log->NodePosY = 128;
-	TheGraph.Nodes.push_back(log);
+	TheGraph.Nodes[2] = (log);
 
 	StringLiteral* literal = new StringLiteral("Loop Cycle");
 	literal->ID = 3;
 	literal->NodePosX = 47;
 	literal->NodePosY = 145;
-	TheGraph.Nodes.push_back(literal);
+	TheGraph.Nodes[3] = (literal);
 
 	StringLiteral* endLiteral = new StringLiteral("Loop Complete");
 	endLiteral->ID = 4;
 	endLiteral->NodePosX = 517;
 	endLiteral->NodePosY = 320;
-	TheGraph.Nodes.push_back(endLiteral);
+	TheGraph.Nodes[4] = (endLiteral);
 
 	log = new PrintLog();
 	log->ID = 5;
@@ -452,7 +470,7 @@ void SetupGraph()
 	log->Arguments[0].ValueId = 0;
 	log->NodePosX = 825;
 	log->NodePosY = 10;
-	TheGraph.Nodes.push_back(log);
+	TheGraph.Nodes[5] = (log);
 }
 
 

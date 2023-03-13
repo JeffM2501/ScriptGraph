@@ -219,7 +219,7 @@ void DrawLinks(ScriptGraph& graph)
 	int linkID = 0;
 
 	// draw the links
-	for (auto& node : graph.Nodes)
+	for (auto& [i,node] : graph.Nodes)
 	{
 		auto& nodeCacheItem = NodeCache[node->ID];
 
@@ -305,7 +305,7 @@ void ProcessNewLinks(ScriptGraph& graph)
 			if (destIndex >= 0)
 			{
 				// verify compatible types
-				if (graph.Nodes[endPinInfo.first]->Arguments[destIndex].RefType == graph.Nodes[startPinInfo.first]->Values[valuePin].Type)
+			//	if (graph.Nodes[endPinInfo.first]->Arguments[destIndex].RefType == graph.Nodes[startPinInfo.first]->Values[valuePin].Type)
 				{
 					graph.Nodes[endPinInfo.first]->Arguments[destIndex].ID = startPinInfo.first;
 					graph.Nodes[endPinInfo.first]->Arguments[destIndex].ValueId = valuePin;
@@ -321,7 +321,7 @@ void ProcessNewLinks(ScriptGraph& graph)
 			if (destIndex >= 0)
 			{
 				// verify compatible types
-				if (graph.Nodes[endPinInfo.first]->Values[destIndex].Type == graph.Nodes[startPinInfo.first]->Arguments[argumentPin].RefType)
+			//	if (graph.Nodes[endPinInfo.first]->Values[destIndex].Type == graph.Nodes[startPinInfo.first]->Arguments[argumentPin].RefType)
 				{
 					graph.Nodes[startPinInfo.first]->Arguments[argumentPin].ID = endPinInfo.first;
 					graph.Nodes[startPinInfo.first]->Arguments[argumentPin].ValueId = destIndex;
@@ -360,19 +360,32 @@ void ProcessRemovedLinks(ScriptGraph& graph)
 	}
 }
 
+void AddNodeAtCursorPos(const std::string& nodeName, ScriptGraph& graph)
+{
+	ImVec2 mousePos = ImGui::GetMousePos();
+
+	Node* node = NodeRegistry::CreateNode(nodeName.c_str());
+
+	node->NodePosX = mousePos.x - WindowOrigin.x - 50;
+	node->NodePosY = mousePos.y - WindowOrigin.y - 25;
+
+	uint32_t id = graph.AddNode(node);
+
+	NewNodes.insert(id);
+}
+
 void HandleNodeDrag(ScriptGraph& graph)
 {
 	ImVec2 mousePos = ImGui::GetMousePos();
 
 	if (ImGui::BeginDragDropTarget())
 	{
-		const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("NODE_DEF");
+		const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("NODE");
 		if (payload != nullptr && payload->IsDelivery())
 		{
-			IM_ASSERT(payload->DataSize == sizeof(size_t));
-			const std::string* payload_n = (std::string*)payload->Data;
+			const char* name = (const char*)payload->Data;
 
-			AddNodeAtCursorPos(payload_n);
+			AddNodeAtCursorPos(name, graph);
 		}
 		ImGui::EndDragDropTarget();
 	}
@@ -388,8 +401,8 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 	LinkNodeCache.clear();
 
 	int index = 0;
-	for (auto& node : graph.Nodes)
-		ShowNode(node, index, forcePositions);
+	for (auto& [i,node] : graph.Nodes)
+		ShowNode(node, index, forcePositions || NewNodes.find(i) != NewNodes.end());
 
 	DrawLinks(graph);
 	
@@ -399,6 +412,7 @@ void ShowGraphEditor(ScriptGraph& graph, bool forcePositions)
 
 	ProcessRemovedLinks(graph);
 
+	NewNodes.clear();
 	HandleNodeDrag(graph);
 }
 

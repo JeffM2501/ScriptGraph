@@ -80,8 +80,8 @@ workspace (workspaceName)
 
     startproject("script_test")
 
-    cdialect "C99"
-    cppdialect "C++11"
+    cdialect "C11"
+    cppdialect "C++17"
     
 	check_raylib();
 	

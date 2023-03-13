@@ -68,6 +68,18 @@ namespace NodeRegistry
 
 		return nodes;
 	}
+
+	const std::string& GetNodeTypeFromIndex(size_t index)
+	{
+		size_t i = 0;
+		for (const auto& nodeInfo : NodeTypeDb)
+		{
+			if (i == index)
+				return nodeInfo.first;
+		}
+		static std::string empty;
+		return empty;
+	}
 }
 
 ScriptInstance::ScriptInstance(ScriptGraph& graph)
