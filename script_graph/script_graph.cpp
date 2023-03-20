@@ -319,7 +319,7 @@ const ValueData* NumberComparison::GetValue(uint32_t id, ScriptInstance& state)
 			case NumberComparison::Operation::LessThan:
 				ReturnValue.Value = a->Number() < b->Number();
 				break;
-			case NumberComparison::Operation::LessThankEqual:
+			case NumberComparison::Operation::LessThanEqual:
 				ReturnValue.Value = a->Number() <= b->Number();
 				break;
 			case NumberComparison::Operation::Equal:

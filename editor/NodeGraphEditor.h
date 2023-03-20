@@ -19,7 +19,7 @@ private:
 
 NodeEditHandler* AddNodeHandler(const std::string& name, NodeEditHandler* handler);
 template<class T>
-T* AddNodeHandler((const std::string& name)
+T* AddNodeHandler(const std::string& name)
 {
 	T* t = new T();
 	return static_cast<T*>(AddNodeHandler(name, t));

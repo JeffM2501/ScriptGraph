@@ -192,20 +192,37 @@ void SetupScripting()
 
 	AddNodeBody(BooleanComparison::GetTypeName(), [](Node* node)
 	{
-			BooleanComparison* boolComp = static_cast<BooleanComparison*>(node);
-		bool value = literal->GetValue();
+		BooleanComparison* comp = static_cast<BooleanComparison*>(node);
+		const char* value = BooleanComparison::ToString(comp->Operator);
 		ImGui::SetNextItemWidth(125);
-		if (ImGui::BeginCombo("###Value", value ? "TRUE" : "FALSE"))
+		if (ImGui::BeginCombo("###Value", value))
 		{
-			if (ImGui::Selectable("TRUE", value))
-				literal->SetValue(true);
-
-			if (ImGui::Selectable("FALSE", !value))
-				literal->SetValue(false);
-
+			DoForEachEnum<BooleanComparison::Operation>([comp](BooleanComparison::Operation op)
+				{
+					const char* value = BooleanComparison::ToString(op);
+					if (ImGui::Selectable(value, op == comp->Operator))
+						comp->Operator = op;
+				});
 			ImGui::EndCombo();
 		}
 	});
+
+	AddNodeBody(NumberComparison::GetTypeName(), [](Node* node)
+		{
+			NumberComparison* comp = static_cast<NumberComparison*>(node);
+			const char* value = NumberComparison::ToString(comp->Operator);
+			ImGui::SetNextItemWidth(175);
+			if (ImGui::BeginCombo("###Value", value))
+			{
+				DoForEachEnum<NumberComparison::Operation>([comp](NumberComparison::Operation op)
+					{
+						const char* value = NumberComparison::ToString(op);
+						if (ImGui::Selectable(value, op == comp->Operator))
+							comp->Operator = op;
+					});
+				ImGui::EndCombo();
+			}
+		});
 
 	AddNodeIcon(BooleanComparison::GetTypeName(), ICON_FA_EQUALS);
 	AddNodeIcon(NumberComparison::GetTypeName(), ICON_FA_EQUALS);

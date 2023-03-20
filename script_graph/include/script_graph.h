@@ -321,6 +321,15 @@ protected:
 	NumberValueData IndexValue;
 };
 
+template<class T>
+inline void DoForEachEnum(std::function<void(T)> func)
+{
+	if (!func)
+		return;
+	for (int i = 0; i < (int)T::LAST_OP; i++)
+		func((T)i);
+}
+
 // Comparison
 class BooleanComparison : public Node
 {
@@ -329,8 +338,22 @@ public:
 	{
 		AND = 0,
 		OR,
+		LAST_OP
 	};
 	Operation Operator = Operation::AND;
+
+	static const char* ToString(Operation op)
+	{
+		switch (op)
+		{
+			case BooleanComparison::Operation::AND:
+				return "AND";
+			case BooleanComparison::Operation::OR:
+				return "OR";
+			default:
+				return "UNKNOWN";
+		}
+	}
 
 	BooleanComparison(Operation op = Operation::AND);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
@@ -365,11 +388,33 @@ public:
 		GreaterThan = 0,
 		GreaterThanEqual,
 		LessThan,
-		LessThankEqual,
+		LessThanEqual,
 		Equal,
 		NotEqual,
+		LAST_OP
 	};
 	Operation Operator = Operation::Equal;
+
+	static const char* ToString(Operation op)
+	{
+		switch (op)
+		{
+			case NumberComparison::Operation::GreaterThan:
+				return "Greater Than";
+			case NumberComparison::Operation::GreaterThanEqual:
+				return "Greater Than Or Equal";
+			case NumberComparison::Operation::LessThan:
+				return "Less Than";
+			case NumberComparison::Operation::LessThanEqual:
+				return "Less Than Or Equal";
+			case NumberComparison::Operation::Equal:
+				return "Equals";
+			case NumberComparison::Operation::NotEqual:
+				return "Not Equals";
+			default:
+				return "UNKNOWN";
+		}
+	}
 
 	NumberComparison(Operation op = Operation::GreaterThan);
 	const ValueData* GetValue(uint32_t id, ScriptInstance& state) override;
@@ -396,8 +441,30 @@ public:
 		Divide,
 		Modulo,
 		Pow,
+		LAST_OP
 	};
 	Operation Operator = Operation::Add;
+
+	static const char* ToString(Operation op)
+	{
+		switch (op)
+		{
+			case Math::Operation::Add:
+				return "Add";
+			case Math::Operation::Subtract:
+				return "Subtract";
+			case Math::Operation::Multiply:
+				return "Multiply";
+			case Math::Operation::Divide:
+				return "Divide";
+			case Math::Operation::Modulo:
+				return "Modulo";
+			case Math::Operation::Pow:
+				return "Pow";
+			default:
+				return "UNKNOWN";
+		}
+	}
 
 	DEFINE_NODE(Math);
 
