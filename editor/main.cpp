@@ -224,6 +224,23 @@ void SetupScripting()
 			}
 		});
 
+	AddNodeBody(Math::GetTypeName(), [](Node* node)
+		{
+			Math* comp = static_cast<Math*>(node);
+			const char* value = Math::ToString(comp->Operator);
+			ImGui::SetNextItemWidth(175);
+			if (ImGui::BeginCombo("###Value", value))
+			{
+				DoForEachEnum<Math::Operation>([comp](Math::Operation op)
+					{
+						const char* value = Math::ToString(op);
+						if (ImGui::Selectable(value, op == comp->Operator))
+							comp->Operator = op;
+					});
+				ImGui::EndCombo();
+			}
+		});
+
 	AddNodeIcon(BooleanComparison::GetTypeName(), ICON_FA_EQUALS);
 	AddNodeIcon(NumberComparison::GetTypeName(), ICON_FA_EQUALS);
 	AddNodeIcon(NotComparison::GetTypeName(), ICON_FA_EXCLAMATION);
